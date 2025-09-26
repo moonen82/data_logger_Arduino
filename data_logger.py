@@ -5,7 +5,7 @@ import sqlite3
 import time
 
 #initialiseren van de poorten die nodig zijn om de arduino via usb uit te lezen
-SERIAL_PORT = 'COM3' #dit moet een andere waarde zijn, aangezien deze alleen voor windows is, heb macos nodig
+SERIAL_PORT = '/dev/cu.usbmodem1401' #deze is specifiek voor macOS, voor windows dient deze waarde COM3 te zijn
 BAUD_RATE = 115200
 DATABASE_FILE = 'saturatie_data.db' #aanroepen correcte sqlite db
 
