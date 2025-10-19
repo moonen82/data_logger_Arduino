@@ -1,11 +1,14 @@
 #importeren van module die nodig is voor het uitlezen van de Arduino via usb
+from xmlrpc.client import boolean
+
 import serial
 #importeren van module die nodig is voor het connecteren en bewerken van de sqlite db
 import sqlite3
 import time
+import re
 
 #initialiseren van de poorten die nodig zijn om de arduino via usb uit te lezen
-SERIAL_PORT = '/dev/cu.usbmodem1401' #deze is specifiek voor macOS, voor windows dient deze waarde COM3 te zijn
+SERIAL_PORT = '/dev/cu.usbmodem11301' #deze is specifiek voor macOS, voor windows dient deze waarde COM3 te zijn
 BAUD_RATE = 115200
 DATABASE_FILE = 'saturatie_data.db' #aanroepen correcte sqlite db
 
@@ -47,22 +50,39 @@ def main():
         while True:
             if ser.in_waiting > 0: #wacht op data van de Arduino
                 line = ser.readline().decode('utf-8').strip() #decode data naar utf-8 codeset en verwijderd overbodige whitespaces
-
-                if line and ',' in line: #controleer of de lijn data bevat en het juiste format heeft
-                    try:
-                        hartslag, spo2 = line.split(',') #lijn uitsplitsen in 2 nieuwe variabelen nl. hartslag en spo2
-                        hartslag = int(hartslag) #omzetten string naar int
-                        spo2 = float(spo2) #omzetten string naar float (komma getal)
-
-                        meting_id = insert_data(db_conn, (hartslag, spo2)) #voeg de data toe aan de database via methode met de correcte  variabelen die nodig zijn
+                #data_values = [] #lijst initialiseren en leeg maken voor nieuw gebruik
+                #if line in line: #controleer of de lijn data bevat en het juiste format heeft
+                #hartslag = 0
+                hartslag = round(float(line))
+                spo2 = 100.0
+                meting_id = insert_data(db_conn, (hartslag, spo2))  # voeg de data toe aan de database via methode met de correcte  variabelen die nodig zijn
+                if meting_id:
+                    print(f"Data ontvangen en opgeslagen (ID: {meting_id}): Pulse={hartslag}")  # teruggeven indien gelukt met db ID, hartslag waarde en spo2 waarde
+                else:
+                    print('Invalid data received')
+                    '''try:
+                        print(line)
+                        hartslag = int(line)
+                        print(hartslag)
+                        #red_ledcolor, ir_ledcolor, hartslag, valid_hr, spo2, valid_spo2 = line.split(',') #lijn uitsplitsen in alle nieuwe variabelen nl. hartslag en spo2
+                        #data_values = line.split(',') #opslaan data waarden in lijst
+                        #hartslag = int(hartslag) omzetten string naar int -- eruit halen, hartslag heeft foutieve conversie in huidige arduino code
+                        #for item in data_values:
+                            #if ("SPO2Valid=1" == item): #controle of geldige spo2 meting (hoort 1 te zijn)
+                                #if ("SPO2=" in item): #correcte veld ophalen spo2
+                                 #   getal_uit_string = int(item.split("=")[1].strip()) #string splitsen alleen laatste gedeelte nummer nodig, eventueel whitespace weg en omzetten naar int
+                        meting_id = insert_data(db_conn, hartslag)  # voeg de data toe aan de database via methode met de correcte  variabelen die nodig zijn
                         if meting_id:
-                            print(f"Data ontvangen en opgeslagen (ID: {meting_id}): Hartslag={hartslag}, SpO2={spo2}") #teruggeven indien gelukt met db ID, hartslag waarde en spo2 waarde
+                            print(
+                                f"Data ontvangen en opgeslagen (ID: {meting_id}): Pulse={hartslag}")  # teruggeven indien gelukt met db ID, hartslag waarde en spo2 waarde
+                        else:
+                            print('Invalid data received')
 
                     except ValueError:
                         print(f"Ongeldige data ontvangen: '{line}' - wordt overgeslagen.") #indien geen geldige data aangeven dat deze wordt overgeslagen
                     except Exception as e:
                         print(f"Een onverwachte fout is opgetreden: {e}") #indien error, dan betreffende error weergeven aan gebruiker
-
+                    '''
     except serial.SerialException as e:
         print(f"Fout met de seriële poort: {e}") #indien error, gebruiker informeren
         print(f"Controleer of de poort '{SERIAL_PORT}' correct is en niet in gebruik door een andere applicatie (zoals de Arduino Seriële Monitor).") #gebruiker informeren om de correct poort settings te verifieren
@@ -75,6 +95,7 @@ def main():
         if db_conn:
             db_conn.close() #sluiten database connectie
             print("Databaseverbinding gesloten.") #terugkoppelen gebruiker dat db connectie is gesloten
+
 
 
 if __name__ == '__main__':
