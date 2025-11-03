@@ -90,9 +90,9 @@ finally:
         print("Databaseverbinding gesloten.") #terugkoppelen gebruiker dat db connectie is gesloten
 
 app = dash.Dash(__name__)
-server = app.server
+# server = app.server
 
-app.layout = html.Div(style={'fontFamily': 'Arial, sans-serif', 'padding': '20px'}) [
+app.layout = html.Div(style={'fontFamily': 'Arial, sans-serif', 'padding': '20px'}, children= [
 
     html.H1(
         "Hartslag en Saturatie metingen",
@@ -120,7 +120,7 @@ app.layout = html.Div(style={'fontFamily': 'Arial, sans-serif', 'padding': '20px
             dcc.Graph(id='meting-graph')
         ]
     )
-]
+])
 
 @app.callback(
     Output('meting-graph', 'figure'),
@@ -142,6 +142,6 @@ def update_meting(selected_graph_type):
 if __name__ == '__main__':
     print("Dash app is running...")
     print(f"Open your browser at http://127.0.0.1:8050/")
-    app.run_server(debug=True)
+    app.run(debug=True)
 
 
