@@ -55,7 +55,6 @@ graph_type_options = [
     {'label': 'Saturatie', 'value': 'spo2'},
 ]
 
-# print(main_data_frame) # test regel om te kijken hoe de data eruit komt -- tzt verwijderen
 
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) #maak verbinding met de seriële poort
@@ -127,15 +126,21 @@ app.layout = html.Div(style={'fontFamily': 'Arial, sans-serif', 'padding': '20px
     [Input('meting-dropdown', 'value')]
 )
 def update_meting(selected_graph_type):
+    x_axis_list =list(range(1, 49))
+
     if selected_graph_type == 'hartslag':
-        grouped_data_frame = main_data_frame.groupby('hartslag')
+        grouped_data_frame = main_data_frame['hartslag']
+        print(grouped_data_frame)
         title = "Hartslag"
-        fig = px.histogram(grouped_data_frame, x='hartslag')
+        fig = px.scatter(grouped_data_frame,x= x_axis_list, y='hartslag')
+    elif selected_graph_type == 'spo2':
+        grouped_data_frame = main_data_frame['spo2']
+        title = "Spo2"
+        fig = px.scatter(grouped_data_frame, x= x_axis_list, y='spo2')
 
     fig.update_layout(
         transition_duration=500
     )
-
     return fig
 
 
