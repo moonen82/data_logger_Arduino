@@ -8,6 +8,7 @@ from dash.dependencies import Input, Output # mogelijk nodig voor dropdown ed. i
 import pandas as pd
 import plotly.express as px
 
+
 #initialiseren van de poorten die nodig zijn om de arduino via usb uit te lezen
 SERIAL_PORT = '/dev/cu.usbmodem11301' #deze is specifiek voor macOS, voor windows dient deze waarde COM3 te zijn
 BAUD_RATE = 115200
