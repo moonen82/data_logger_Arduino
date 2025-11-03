@@ -1,11 +1,12 @@
 #importeren van module die nodig is voor het uitlezen van de Arduino via usb
-from xmlrpc.client import boolean
-
-import serial
-#importeren van module die nodig is voor het connecteren en bewerken van de sqlite db
+import serial #importeren van module die nodig is voor het connecteren en bewerken van de sqlite db
 import sqlite3
 import time
-import re
+import dash
+from dash import dcc, html # nodig voor opbouw pagina met html
+from dash.dependencies import Input, Output # mogelijk nodig voor dropdown ed. in grafieken
+import pandas as pd
+import plotly.express as px
 
 #initialiseren van de poorten die nodig zijn om de arduino via usb uit te lezen
 SERIAL_PORT = '/dev/cu.usbmodem11301' #deze is specifiek voor macOS, voor windows dient deze waarde COM3 te zijn
@@ -35,70 +36,111 @@ def insert_data(conn, data):
         print(f"Database error: {e}") #weergeven gegenereerde error code
         return None #teruggeven van 'None'
 
+def read_data(conn):
+    read_query = '''SELECT hartslag, spo2 FROM metingen'''  # query opstellen voor uitlezen hartslag en spo2 data uit sqlite db
+    data_frame = pd.read_sql(read_query, conn) # via pandas query uitvoeren op db en connectie maken met db
+    return data_frame
 
-def main():
-    db_conn = create_database_connection(DATABASE_FILE) #creeren van db connectie string
-    if db_conn is None: #indien db_conn leeg is dan..
-        print("Kan geen databaseverbinding maken. Script stopt.") #aangeven dat er geen connectie gemaakt kan worden
-        return
 
-    try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) #maak verbinding met de seriële poort
-        print(f"Luisteren naar seriële poort {SERIAL_PORT} op {BAUD_RATE} baud...") #weergeven op welke poort en snelheid geluisterd wordt
-        time.sleep(2)  #geef de verbinding even de tijd om te stabiliseren
+#def main():
+db_conn = create_database_connection(DATABASE_FILE) #creeren van db connectie string
+if db_conn is None: #indien db_conn leeg is dan..
+    print("Kan geen databaseverbinding maken. Script stopt.") #aangeven dat er geen connectie gemaakt kan worden
 
-        while True:
-            if ser.in_waiting > 0: #wacht op data van de Arduino
-                line = ser.readline().decode('utf-8').strip() #decode data naar utf-8 codeset en verwijderd overbodige whitespaces
-                #data_values = [] #lijst initialiseren en leeg maken voor nieuw gebruik
-                #if line in line: #controleer of de lijn data bevat en het juiste format heeft
-                #hartslag = 0
-                hartslag = round(float(line))
-                spo2 = 100.0
-                meting_id = insert_data(db_conn, (hartslag, spo2))  # voeg de data toe aan de database via methode met de correcte  variabelen die nodig zijn
-                if meting_id:
-                    print(f"Data ontvangen en opgeslagen (ID: {meting_id}): Pulse={hartslag}")  # teruggeven indien gelukt met db ID, hartslag waarde en spo2 waarde
-                else:
-                    print('Invalid data received')
-                    '''try:
-                        print(line)
-                        hartslag = int(line)
-                        print(hartslag)
-                        #red_ledcolor, ir_ledcolor, hartslag, valid_hr, spo2, valid_spo2 = line.split(',') #lijn uitsplitsen in alle nieuwe variabelen nl. hartslag en spo2
-                        #data_values = line.split(',') #opslaan data waarden in lijst
-                        #hartslag = int(hartslag) omzetten string naar int -- eruit halen, hartslag heeft foutieve conversie in huidige arduino code
-                        #for item in data_values:
-                            #if ("SPO2Valid=1" == item): #controle of geldige spo2 meting (hoort 1 te zijn)
-                                #if ("SPO2=" in item): #correcte veld ophalen spo2
-                                 #   getal_uit_string = int(item.split("=")[1].strip()) #string splitsen alleen laatste gedeelte nummer nodig, eventueel whitespace weg en omzetten naar int
-                        meting_id = insert_data(db_conn, hartslag)  # voeg de data toe aan de database via methode met de correcte  variabelen die nodig zijn
-                        if meting_id:
-                            print(
-                                f"Data ontvangen en opgeslagen (ID: {meting_id}): Pulse={hartslag}")  # teruggeven indien gelukt met db ID, hartslag waarde en spo2 waarde
-                        else:
-                            print('Invalid data received')
 
-                    except ValueError:
-                        print(f"Ongeldige data ontvangen: '{line}' - wordt overgeslagen.") #indien geen geldige data aangeven dat deze wordt overgeslagen
-                    except Exception as e:
-                        print(f"Een onverwachte fout is opgetreden: {e}") #indien error, dan betreffende error weergeven aan gebruiker
-                    '''
-    except serial.SerialException as e:
-        print(f"Fout met de seriële poort: {e}") #indien error, gebruiker informeren
-        print(f"Controleer of de poort '{SERIAL_PORT}' correct is en niet in gebruik door een andere applicatie (zoals de Arduino Seriële Monitor).") #gebruiker informeren om de correct poort settings te verifieren
-    except KeyboardInterrupt:
-        print("\nScript gestopt door gebruiker.") #indien interrupt door eindgebruiker, dit melden in console
-    finally:
-        if 'ser' in locals() and ser.is_open:
-            ser.close() #sluiten seriele verbinding
-            print("Seriële poort gesloten.") #terugkoppelen gebruiker gesloten seriele verbinding
-        if db_conn:
-            db_conn.close() #sluiten database connectie
-            print("Databaseverbinding gesloten.") #terugkoppelen gebruiker dat db connectie is gesloten
+main_data_frame = read_data(db_conn) # ophalen data uit sqlite en in dataframe beschikbaar maken
+graph_type_options = [
+    {'label': 'Hartslag', 'value': 'hartslag'},
+    {'label': 'Saturatie', 'value': 'spo2'},
+]
 
+# print(main_data_frame) # test regel om te kijken hoe de data eruit komt -- tzt verwijderen
+
+try:
+    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) #maak verbinding met de seriële poort
+    print(f"Luisteren naar seriële poort {SERIAL_PORT} op {BAUD_RATE} baud...") #weergeven op welke poort en snelheid geluisterd wordt
+    time.sleep(2)  #geef de verbinding even de tijd om te stabiliseren
+
+    while True:
+        if ser.in_waiting > 0: #wacht op data van de Arduino
+            line = ser.readline().decode('utf-8').strip() #decode data naar utf-8 codeset en verwijderd overbodige whitespaces
+            #data_values = [] #lijst initialiseren en leeg maken voor nieuw gebruik
+            #if line in line: #controleer of de lijn data bevat en het juiste format heeft
+            #hartslag = 0
+            hartslag = round(float(line))
+            spo2 = 100.0
+            meting_id = insert_data(db_conn, (hartslag, spo2))  # voeg de data toe aan de database via methode met de correcte  variabelen die nodig zijn
+            if meting_id:
+                print(f"Data ontvangen en opgeslagen (ID: {meting_id}): Pulse={hartslag}")  # teruggeven indien gelukt met db ID, hartslag waarde en spo2 waarde
+            else:
+                print('Invalid data received')
+
+except serial.SerialException as e:
+    print(f"Fout met de seriële poort: {e}") #indien error, gebruiker informeren
+    print(f"Controleer of de poort '{SERIAL_PORT}' correct is en niet in gebruik door een andere applicatie (zoals de Arduino Seriële Monitor).") #gebruiker informeren om de correct poort settings te verifieren
+except KeyboardInterrupt:
+    print("\nScript gestopt door gebruiker.") #indien interrupt door eindgebruiker, dit melden in console
+finally:
+    if 'ser' in locals() and ser.is_open:
+        ser.close() #sluiten seriele verbinding
+        print("Seriële poort gesloten.") #terugkoppelen gebruiker gesloten seriele verbinding
+    if db_conn:
+        db_conn.close() #sluiten database connectie
+        print("Databaseverbinding gesloten.") #terugkoppelen gebruiker dat db connectie is gesloten
+
+app = dash.Dash(__name__)
+server = app.server
+
+app.layout = html.Div(style={'fontFamily': 'Arial, sans-serif', 'padding': '20px'}) [
+
+    html.H1(
+        "Hartslag en Saturatie metingen",
+        style={'textAlign': 'center'}
+    ),
+    html.Div(
+        [
+            html.Label(
+                "Filter metingen",
+                style={'fontWeight': 'bold', 'marginRight': '10px'}
+            ),
+
+            dcc.Dropdown(
+                id='meting-dropdown',
+                options=graph_type_options,
+                value='hartslag',
+                clearable=False,
+                style={'width': '50%', 'minWidth': '200px', 'display': 'inline-block'}
+            ),
+        ],
+        style={'marginBottom': '20px', 'padding': '15px', 'border': '1px solid black', 'borderRadius': '5px'}
+    ),
+    html.Div(
+        [
+            dcc.Graph(id='meting-graph')
+        ]
+    )
+]
+
+@app.callback(
+    Output('meting-graph', 'figure'),
+    [Input('meting-dropdown', 'value')]
+)
+def update_meting(selected_graph_type):
+    if selected_graph_type == 'hartslag':
+        grouped_data_frame = main_data_frame.groupby('hartslag')
+        title = "Hartslag"
+        fig = px.histogram(grouped_data_frame, x='hartslag')
+
+    fig.update_layout(
+        transition_duration=500
+    )
+
+    return fig
 
 
 if __name__ == '__main__':
-    main() #aanroep hoofd programma en uitvoering starten
+    print("Dash app is running...")
+    print(f"Open your browser at http://127.0.0.1:8050/")
+    app.run_server(debug=True)
 
 
